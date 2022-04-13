@@ -1,9 +1,0 @@
-[requires]
-boost/1.78.0
-argparse/2.2
-fmt/8.1.1
-ragel/6.10
-
-[generators]
-cmake_find_package
-pkg_config
