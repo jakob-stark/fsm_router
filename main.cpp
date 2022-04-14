@@ -5,14 +5,12 @@
 #include <string_view>
 
 #include <argparse/argparse.hpp>
-#include <fmt/core.h>
 
 #include <fsm.hpp>
 
 using namespace std::literals;
 
 int main(int argc, char* argv[]) {
-    
     argparse::ArgumentParser parser("url_test");
     parser.add_argument("url")
         .help("url to parse");
@@ -37,52 +35,27 @@ int main(int argc, char* argv[]) {
         {3}
     };
 
-    NFA nfa = enfa.to_nfa();
-    nfa.print_dot();
+    eNFA enfa2 {
+        {
+            { {1, {'0'}}, {2} },
+            { {1, {   }}, {3} },
+            { {2, {'1'}}, {2,4} },
+            { {3, {'0'}}, {4} },
+            { {3, {   }}, {2} },
+            { {4, {'0'}}, {3} }
+        },
+        {1},
+        {3,4}
+    };
 
-    /*
-    for ( auto [k, v] : enfa.T ) {
-        std::cout << k.first << "(" << k.second.value_or('#') << ") -> {";
-        for ( auto e : v ) {
-            std::cout << e << ", ";
-        }
-        std::cout << "}\n";
-    }
+    NFA nfa = enfa2.to_nfa();
+    //nfa.print_dot();
 
-    std::cout << '\n';
+    fmt::print("\n");
+    DFA dfa = nfa.powerset();
+    fmt::print("\n");
 
-    std::cout << "E({0}) = {";
-    for ( auto e : enfa.E({0}) ) {
-        std::cout << e << ", ";
-    }
-    std::cout << "}\n";
-
-    std::cout << "E({1}) = {";
-    for ( auto e : enfa.E({1}) ) {
-        std::cout << e << ", ";
-    }
-    std::cout << "}\n";
-
-    std::cout << "E({}) = {";
-    for ( auto e : enfa.E({}) ) {
-        std::cout << e << ", ";
-    }
-    std::cout << "}\n";
-
-    std::cout << "E({0,1}) = {";
-    for ( auto e : enfa.E({0,1}) ) {
-        std::cout << e << ", ";
-    }
-    std::cout << "}\n";
-
-    std::cout << '\n'; 
-    for ( auto [k, v] : nfa.T ) {
-        std::cout << k.first << "(" << k.second << ") -> {";
-        for ( auto e : v ) {
-            std::cout << e << ", ";
-        }
-        std::cout << "}\n";
-    }*/
+    dfa.print_dot();
 
     return 0;
 

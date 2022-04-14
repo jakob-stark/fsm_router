@@ -1,9 +1,53 @@
 #include <map>
 #include <set>
 #include <queue>
-#include <fmt/core.h>
+#include <string>
 
-class DFA;
+#define FMT_HEADER_ONLY
+#include <fmt/core.h>
+#include <fmt/format.h>
+
+using namespace std::literals;
+namespace stdr = std::ranges;
+
+/**
+ *  A deterministic finite automaton (DFA)
+ */
+template<typename state_t = unsigned int, typename symbol_t = char>
+class DFA {
+    public:
+        using set_t = std::set<state_t>;
+        using key_t = std::pair<state_t, symbol_t>;
+
+        std::map<key_t, state_t> T;
+        state_t S;
+        set_t F;
+
+    public:
+        DFA(decltype(T) T, decltype(S) S, decltype(F) F):
+            T(std::move(T)),
+            S(std::move(S)),
+            F(std::move(F)) {};
+
+        void print_dot() {
+            using fmt::print;
+            print("digraph nfa {{\n");
+            print("  rankdir=LR;\n");
+            print("  node [shape = doublecircle]; ");
+            for ( const auto& y : F ) {
+                print("{} ",y);
+            }
+            print(";\n");
+            print("  node [shape = circle, style = filled]; {};\n", S);
+            print("  node [shape = circle, style = \"\"];\n");
+            for ( const auto& [key, y] : T ) {
+                const auto& [x, a] = key;
+                print("  {} -> {} [label=\"'{}'\"];\n", x, y, a);
+            }
+            print("}}\n");
+        }
+};
+
     
 /**
  *  A nondeterministic finite automaton (NFA)
@@ -52,34 +96,84 @@ class NFA {
             S(std::move(S)),
             F(std::move(F)) {};
 
-        void print_dot() const {
+        /**
+         *  Print dot code that represents the eNFA
+         */
+        void print_dot() {
             using fmt::print;
-            
             print("digraph nfa {{\n");
             print("  rankdir=LR;\n");
-
             print("  node [shape = doublecircle]; ");
             for ( const auto& y : F ) {
                 print("{} ",y);
             }
             print(";\n");
-
             print("  node [shape = circle, style = filled]; ");
             for ( const auto& y : S ) {
                 print("{} ",y);
             }
             print(";\n");
-
             print("  node [shape = circle, style = \"\"];\n");
             for ( const auto& [key, set] : T ) {
                 const auto& [x, a] = key;
                 for ( const auto& y : set ) {
-                    print("  {} -> {} [label={}];\n", x, y, a);
+                    print("  {} -> {} [label=\"'{}'\"];\n", x, y, a);
                 }
             }
             print("}}\n");
         }
-        //DFA powerset;
+
+        auto powerset() {
+            using dfa_t = DFA<state_t, symbol_t>;
+            constexpr symbol_t symbol_min = std::numeric_limits<symbol_t>::min();
+            constexpr symbol_t symbol_max = std::numeric_limits<symbol_t>::max();
+
+            std::map<std::pair<set_t, symbol_t>, set_t> PT;
+            std::map<set_t, state_t> PQ {{S,0}};
+            std::queue<set_t> Q; Q.push(S);
+            state_t i = std::numeric_limits<state_t>::min();
+
+            while ( !Q.empty() ) {
+                auto pq = std::move(Q.front()); Q.pop();
+                std::map<symbol_t, set_t> pt;
+                for ( const auto& q : pq ) {
+                    for ( const auto& [key, p] : stdr::subrange(
+                            T.lower_bound({q, symbol_min}), T.upper_bound({q, symbol_max})) ) {
+                        auto& s = pt[key.second];
+                        for ( const auto& x : p ) {
+                            s.insert(x);
+                        }
+                    }
+                }
+
+                for ( auto [ sym, set] : pt ) {
+                    PT.insert({{pq,sym}, set});
+                    if ( PQ.insert({set, ++i}).second ) {
+                        Q.push(set);
+                    }
+                }
+            }
+
+            std::map<std::pair<state_t, symbol_t>, state_t> DT;
+            std::set<state_t> DF;
+            state_t DS {PQ.at(S)};
+
+            for ( const auto& [pq, dq] : PQ ) {
+                for ( const auto& q: pq ) {
+                    if ( F.contains(q) ) {
+                        DF.insert(dq);
+                        break;
+                    }
+                }
+
+                for ( const auto& [key , pp] : stdr::subrange(
+                        PT.lower_bound({pq, symbol_min}), PT.upper_bound({pq, symbol_max})) ) {
+                    DT.insert({{dq, key.second}, PQ.at(pp)});
+                }
+            }
+
+            return dfa_t(DT, DS, DF);
+        }
 };
 
 /**
@@ -143,6 +237,35 @@ class eNFA {
             S(std::move(S)),
             F(std::move(F)) {};
 
+        /**
+         *  Print dot code that represents the eNFA
+         */
+        void print_dot() {
+            using fmt::print;
+            print("digraph nfa {{\n");
+            print("  rankdir=LR;\n");
+            print("  node [shape = doublecircle]; ");
+            for ( const auto& y : F ) {
+                print("{} ",y);
+            }
+            print(";\n");
+            print("  node [shape = circle, style = filled]; ");
+            for ( const auto& y : S ) {
+                print("{} ",y);
+            }
+            print(";\n");
+            print("  node [shape = circle, style = \"\"];\n");
+            for ( const auto& [key, set] : T ) {
+                const auto& [x, a] = key;
+                for ( const auto& y : set ) {
+                    std::string s = a.has_value() ? fmt::format("'{}'",*a) : "\u03b5"s;
+                    print("  {} -> {} [label=\"{}\"];\n", x, y, s);
+                }
+            }
+            print("}}\n");
+        }
+
+
         /** 
          *  Compute the epsilon closure E(P) off a set of states P.
          *
@@ -197,9 +320,4 @@ class eNFA {
         };
 };
 
-
-class DFA {
-
-
-};
 

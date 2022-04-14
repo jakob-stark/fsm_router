@@ -23,8 +23,6 @@ opt_var.add_cmake_defines({
 })
 sub = cmake.subproject('url', options : opt_var)
 
-subdir('fsm')
-
 executable('server', ['main.cpp'],
   dependencies: conan_deps + [sub.dependency('boost_url')]
 )
