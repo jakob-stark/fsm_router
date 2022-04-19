@@ -48,11 +48,28 @@ int main(int argc, char* argv[]) {
         {3,4}
     };
 
-    NFA nfa = enfa2.to_nfa();
-    //nfa.print_dot();
+    eNFA enfa3 {
+        {
+            { {1, {'0'}}, {2} },
+            { {1, {'1'}}, {3} },
+            { {2, {'0'}}, {1} },
+            { {2, {'1'}}, {4} },
+            { {3, {'0'}}, {5} },
+            { {3, {'1'}}, {6} },
+            { {4, {'0'}}, {5} },
+            { {4, {'1'}}, {6} },
+            { {5, {'0'}}, {5} },
+            { {5, {'1'}}, {6} },
+            { {6, {'0'}}, {6} },
+            { {6, {'1'}}, {6} },
+        },
+        {1},
+        {3,4,5}
+    };
 
-    fmt::print("\n");
-    DFA dfa = nfa.powerset();
+    NFA nfa = enfa3.to_nfa();
+
+    DFA dfa = nfa.powerset().reverse().powerset().reverse().powerset();
     fmt::print("\n");
 
     dfa.print_dot();
