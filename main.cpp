@@ -75,7 +75,7 @@ int main(int argc, char* argv[]) {
         std::string("xyz")
     };
 
-    eNFA enfa6 = (enfa4 & enfa5) | eNFA("abc");
+    eNFA enfa6 = enfa_number | enfa4 | enfa5 | eNFA("xzc"sv);
 
     enfa6.powerset().print_dot();
 
