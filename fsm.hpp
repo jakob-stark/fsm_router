@@ -16,6 +16,15 @@ class DFA;
 template<typename state_t = unsigned int, typename symbol_t = char>
 class eNFA;
 
+template<typename R, typename symbol_t>
+concept symbol_range =
+    std::ranges::common_range<R> &&    
+    std::convertible_to<std::ranges::range_value_t<R>,symbol_t>;
+
+enum class action_type {
+    _FIRST, ENTER, LEAVE, STAY, _LAST
+};
+
 /**
  *  A nondeterministic finite automaton (NFA) with epsilon connections
  *
@@ -53,7 +62,11 @@ class eNFA {
          * std::optional */
         using key_t = std::pair<state_t, std::optional<symbol_t>>;
 
-    private:
+        /* types for action map */
+        using akey_t = std::pair<state_t, action_type>;
+        using alist_t = std::list<std::function<void(std::size_t)>>;
+
+    public:
         /** empty optional symbol is used to represent the epsilon transitions
          * */
         static constexpr std::optional<symbol_t> e {};
@@ -71,11 +84,16 @@ class eNFA {
         /** Set of final states */
         set_t F;
 
+        /**
+         *  Action map
+         */
+        std::map<akey_t, alist_t> A;
+
     public:
         /**
          *  Construct using explicit listing
          */
-        eNFA(std::map<key_t, set_t> T, set_t S, set_t F);
+        eNFA(std::map<key_t, set_t> T, set_t S, set_t F, std::map<akey_t, alist_t> A);
 
         /**
          *  Print dot code that represents the eNFA
@@ -108,8 +126,7 @@ class eNFA {
          *  This constructs a machine that matches the exact sequence of
          *  symbols specified in the range
          */
-        template<typename R>
-        requires std::convertible_to<std::ranges::range_value_t<R>,symbol_t>
+        template<symbol_range<symbol_t> R>
         explicit eNFA(R&& r);
 
         /**
@@ -134,16 +151,26 @@ class DFA {
         using set_t = std::set<state_t>;
         using key_t = std::pair<state_t, symbol_t>;
 
-    private:
+        using akey_t = std::pair<state_t, action_type>;
+        using alist_t = std::list<std::function<void(std::size_t)>>;
+    public:
         std::map<key_t, state_t> T;
         state_t S;
         set_t F;
 
+        /**
+         *  Action map
+         */
+        std::map<akey_t, alist_t> A;
+
     public:
-        DFA(std::map<key_t, state_t> T, state_t S, set_t F);
+        DFA(std::map<key_t, state_t> T, state_t S, set_t F, std::map<akey_t, alist_t> A);
         void print_dot() const;
         DFA<state_t, symbol_t> minimize() const;
         eNFA<state_t, symbol_t> reverse() const;
+
+        template<symbol_range<symbol_t> R>
+        bool match(R&& r);
 };
 
 /* *********************** *
@@ -151,10 +178,12 @@ class DFA {
  * *********************** */
 
 template<typename state_t, typename symbol_t>
-DFA<state_t, symbol_t>::DFA(std::map<key_t, state_t> T, state_t S, set_t F):
+DFA<state_t, symbol_t>::DFA(std::map<key_t, state_t> T, state_t S, set_t F,
+        std::map<akey_t, alist_t> A):
     T(std::move(T)),
     S(std::move(S)),
-    F(std::move(F))
+    F(std::move(F)),
+    A(std::move(A))
 {};
 
 template<typename state_t, typename symbol_t>
@@ -199,6 +228,9 @@ void DFA<state_t, symbol_t>::print_dot() const {
         const auto& [x, a] = key;
         print("  {} -> {} [label=\"'{}'\"];\n", x, y, a);
     }
+    for ( const auto& [key, _] : A ) {
+        print("  {} -> a;\n", key.first);
+    }
     print("}}\n");
 }
 
@@ -221,10 +253,47 @@ eNFA<state_t, symbol_t> DFA<state_t, symbol_t>::reverse() const {
 }
 
 template<typename state_t, typename symbol_t>
-eNFA<state_t,symbol_t>::eNFA(std::map<key_t, set_t> T, set_t S, set_t F):
+template<symbol_range<symbol_t> R>
+bool DFA<state_t, symbol_t>::match(R&& r) {
+    state_t q {S};
+    std::size_t pos {0};
+    for ( symbol_t c : r ) {
+        if ( auto t = T.find({q, c}); t == T.end() ) {
+            return false;
+        } else {
+            if ( q == t->second ) {
+                if ( auto a = A.find({q, action_type::STAY}); a != A.end() ) {
+                    for ( const auto& f : a->second ) {
+                        f(pos);
+                    }
+                }
+            } else {
+                if ( auto a = A.find({q, action_type::LEAVE}); a != A.end() ) {
+                    for ( const auto& f : a->second ) {
+                        f(pos);
+                    }
+                }
+                if ( auto a = A.find({t->second, action_type::ENTER}); a != A.end() ) {
+                    for ( const auto& f : a->second ) {
+                        f(pos);
+                    }
+                }
+            }
+
+            q = t->second;
+        }
+        pos++;
+    }
+    return F.contains(q);
+}
+
+template<typename state_t, typename symbol_t>
+eNFA<state_t,symbol_t>::eNFA(std::map<key_t, set_t> T, set_t S, set_t F,
+        std::map<akey_t, alist_t> A):
     T(std::move(T)),
     S(std::move(S)),
-    F(std::move(F)) 
+    F(std::move(F)),
+    A(std::move(A))
 {};
 
 template<typename state_t, typename symbol_t>
@@ -259,21 +328,35 @@ DFA<state_t, symbol_t> eNFA<state_t, symbol_t>::powerset() const {
 
     // initialize the new transition function map PT and the
     // new final state set PF
-    std::map<std::pair<state_t, symbol_t>, state_t> PT {};
-    set_t PF {};
+    decltype(dfa_t::T) PT {};
+    decltype(dfa_t::A) PA {};
+    decltype(dfa_t::F) PF {};
 
     // initialize the new state counter i, the bfs queue Q, and
     // the powerset to new state map PQ
     state_t i {s};
-    std::queue<set_t> Q; Q.push(E(S));
-    std::map<set_t, state_t> PQ {{Q.front(),i++}};
+    std::map<set_t, state_t> PQ {{E(S),i++}};
+    std::queue<typename decltype(PQ)::iterator> Q; Q.push(PQ.begin());
 
     while ( !Q.empty() ) {
-        auto pq = std::move(Q.front()); Q.pop();
+        const auto& [pq, pi] = *Q.front(); Q.pop();
         std::map<symbol_t, set_t> pt;
 
-        // loop over all states in this powerset
         for ( state_t q : pq ) {
+            // look if the state is a final state
+            if ( F.contains(q) ) {
+                PF.insert(pi);
+            }
+
+            // look if the state contains an action
+            static_assert(false, "move this down, so that we can tranfer actions more precisely");
+            for ( const auto& [key, alist] : stdr::subrange(
+                        A.lower_bound({q, action_type::_FIRST}),
+                        A.upper_bound({q, action_type::_LAST})) ) {
+                auto& palist = PA[{pi, key.second}];
+                stdr::copy(alist, std::back_inserter(palist));
+            }
+
             // loop over all transitions from this state
             // (excluding epsilon transitions)
             for ( const auto& [key, pp] : stdr::subrange(
@@ -290,32 +373,22 @@ DFA<state_t, symbol_t> eNFA<state_t, symbol_t>::powerset() const {
             // it to the queue and increase the state counter.
             auto [map, ins] = PQ.insert({E(pp), i});
             if ( ins ) {
+                Q.push(map);
                 i++;
-                Q.push(map->first);
             }
 
             // add the transition
-            PT.insert({{PQ[pq], s}, map->second});
-            
-            // look if new state is a final state and add it to
-            // the set of final states if so.
-            for ( auto f : F ) {
-                if ( map->first.contains(f) ) {
-                    PF.insert(map->second);
-                    break;
-                }
-            }
+            PT.insert({{pi, s}, map->second});
         }
     }
 
-    return dfa_t(PT, s, PF);
+    return dfa_t(PT, s, PF, PA);
 }
 
 template<typename state_t, typename symbol_t>
-template<typename R>
-requires std::convertible_to<std::ranges::range_value_t<R>, symbol_t>
+template<symbol_range<symbol_t> R>
 eNFA<state_t, symbol_t>::eNFA(R&& r):
-    T{}, S{}, F{}
+    T{}, S{}, F{}, A{}
 {
     state_t i = std::numeric_limits<state_t>::min();
 
@@ -332,8 +405,6 @@ template<typename state_t, typename symbol_t>
 eNFA<state_t, symbol_t> operator | (
         const eNFA<state_t, symbol_t>& lhs, const eNFA<state_t, symbol_t>& rhs) {
     using enfa_t = eNFA<state_t, symbol_t>;
-    using key_t = typename enfa_t::key_t;
-    using set_t = typename enfa_t::set_t;
 
     state_t i {std::numeric_limits<state_t>::min()};
     std::map<state_t, state_t> vmap {};
@@ -345,7 +416,8 @@ eNFA<state_t, symbol_t> operator | (
         return map->second;
     };
 
-    std::map<key_t, set_t> NT {};
+    decltype(enfa_t::T) NT {};
+    decltype(enfa_t::A) NA {};
     state_t s {i++};
     state_t f {i++};
 
@@ -364,9 +436,12 @@ eNFA<state_t, symbol_t> operator | (
         for ( auto p : xhs.F ) {
             NT[{get_mapped(p), enfa_t::e}].insert(f);
         }
+        for ( auto& [key, action] : xhs.A ) {
+            NA.insert({{get_mapped(key.first), key.second}, action});
+        }
     }
 
-    return enfa_t {NT, {s}, {f}};
+    return enfa_t {NT, {s}, {f}, NA};
 }
 
 template<typename state_t, typename symbol_t>
@@ -374,8 +449,6 @@ eNFA<state_t, symbol_t> operator & (
         const eNFA<state_t, symbol_t>& lhs, const eNFA<state_t, symbol_t>& rhs) {
 
     using enfa_t = eNFA<state_t, symbol_t>;
-    using key_t = typename enfa_t::key_t;
-    using set_t = typename enfa_t::set_t;
 
     state_t i {std::numeric_limits<state_t>::min()};
     std::map<state_t, state_t> vmap {};
@@ -387,9 +460,10 @@ eNFA<state_t, symbol_t> operator & (
         return map->second;
     };
 
-    std::map<key_t, set_t> NT {};
-    set_t NS {};
-    set_t NF {};
+    decltype(enfa_t::T) NT {};
+    decltype(enfa_t::A) NA {};
+    decltype(enfa_t::S) NS {};
+    decltype(enfa_t::F) NF {};
 
     // handle lhs
     for ( auto p : lhs.S ) {
@@ -401,6 +475,9 @@ eNFA<state_t, symbol_t> operator & (
         for ( auto p : target ) {
             current.insert(get_mapped(p));
         }
+    }
+    for ( auto& [key, action] : lhs.A ) {
+        NA.insert({{get_mapped(key.first), key.second}, action});
     }
 
     // handle connection
@@ -424,8 +501,11 @@ eNFA<state_t, symbol_t> operator & (
     for ( auto p : rhs.F ) {
         NF.insert(get_mapped(p));
     }
+    for ( auto& [key, action] : rhs.A ) {
+        NA.insert({{get_mapped(key.first), key.second}, action});
+    }
 
-    return enfa_t {NT, NS, NF};
+    return enfa_t {NT, NS, NF, NA};
 }
 
 
@@ -474,6 +554,10 @@ void eNFA<state_t,symbol_t>::print_dot() const {
             print("  {} -> {} [label=\"{}\"];\n", x, y, s);
         }
     }
+
+    for ( const auto& [key, _] : A ) {
+        print("  {} -> a;\n", key.first);
+    }
     print("}}\n");
 }
 
@@ -481,21 +565,27 @@ void eNFA<state_t,symbol_t>::print_dot() const {
  * Constants
  * ************/
 
-const eNFA enfa_number = {
-    {
-        { {0, {'0'}}, {0} },
-        { {0, {'1'}}, {0} },
-        { {0, {'2'}}, {0} },
-        { {0, {'3'}}, {0} },
-        { {0, {'4'}}, {0} },
-        { {0, {'5'}}, {0} },
-        { {0, {'6'}}, {0} },
-        { {0, {'7'}}, {0} },
-        { {0, {'8'}}, {0} },
-        { {0, {'9'}}, {0} },
-    },
-    {0},
-    {0}
-};
+eNFA<> enfa_number(std::size_t& begin, std::size_t& end) {
+    return {
+        {
+            { {0, {'0'}}, {0} },
+            { {0, {'1'}}, {0} },
+            { {0, {'2'}}, {0} },
+            { {0, {'3'}}, {0} },
+            { {0, {'4'}}, {0} },
+            { {0, {'5'}}, {0} },
+            { {0, {'6'}}, {0} },
+            { {0, {'7'}}, {0} },
+            { {0, {'8'}}, {0} },
+            { {0, {'9'}}, {0} },
+        },
+        {0},
+        {0},
+        {
+            { {0,action_type::STAY}, { [&end  ](std::size_t pos){end   = pos;} }},
+            { {0,action_type::ENTER}, { [&begin](std::size_t pos){begin = pos;} }}
+        }
+    };
+}
 
 

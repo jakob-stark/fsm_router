@@ -32,7 +32,10 @@ int main(int argc, char* argv[]) {
             { {2, {   }}, {0} }
         },
         {0},
-        {3}
+        {3},
+        {
+            {{0,action_type::STAY} , { [](std::size_t pos){return;} }}
+        }
     };
 
     eNFA enfa2 {
@@ -45,7 +48,8 @@ int main(int argc, char* argv[]) {
             { {4, {'0'}}, {3} }
         },
         {1},
-        {3,4}
+        {3,4},
+        {}
     };
 
     eNFA enfa3 {
@@ -64,7 +68,8 @@ int main(int argc, char* argv[]) {
             { {6, {'1'}}, {6} },
         },
         {1},
-        {3,4,5}
+        {3,4,5},
+        {}
     };
 
     eNFA enfa4 {
@@ -75,14 +80,18 @@ int main(int argc, char* argv[]) {
         std::string("xyz")
     };
 
-    eNFA enfa6 = enfa_number | enfa4 | enfa5 | eNFA("xzc"sv);
+    std::size_t x,y;
+    eNFA enfa6 = eNFA("abc"sv) & enfa_number(x,y) & eNFA("xzc"sv);
 
-    enfa6.powerset().print_dot();
-
-    //DFA dfa = nfa.powerset().reverse().powerset().reverse().powerset();
-    //fmt::print("\n");
+    DFA dfa = enfa6.powerset();
 
     //dfa.print_dot();
+    auto s = "abc1234xzc"sv;
+    if ( dfa.match(s) )
+        std::cout << s.substr(x,y-x+1) << '\n';
+
+
+
 
     return 0;
 
