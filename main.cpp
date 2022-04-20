@@ -67,12 +67,22 @@ int main(int argc, char* argv[]) {
         {3,4,5}
     };
 
-    NFA nfa = enfa3.to_nfa();
+    eNFA enfa4 {
+        std::string("hallo welt")
+    };
 
-    DFA dfa = nfa.powerset().reverse().powerset().reverse().powerset();
-    fmt::print("\n");
+    eNFA enfa5 {
+        std::string("xyz")
+    };
 
-    dfa.print_dot();
+    eNFA enfa6 = (enfa4 & enfa5) | eNFA("abc");
+
+    enfa6.powerset().print_dot();
+
+    //DFA dfa = nfa.powerset().reverse().powerset().reverse().powerset();
+    //fmt::print("\n");
+
+    //dfa.print_dot();
 
     return 0;
 
