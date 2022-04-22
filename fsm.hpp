@@ -1,6 +1,10 @@
+#ifndef FSM_HPP
+#define FSM_HPP
+
 #include <map>
 #include <set>
 #include <queue>
+#include <list>
 #include <string>
 
 #define FMT_HEADER_ONLY
@@ -349,7 +353,6 @@ DFA<state_t, symbol_t> eNFA<state_t, symbol_t>::powerset() const {
             }
 
             // look if the state contains an action
-            static_assert(false, "move this down, so that we can tranfer actions more precisely");
             for ( const auto& [key, alist] : stdr::subrange(
                         A.lower_bound({q, action_type::_FIRST}),
                         A.upper_bound({q, action_type::_LAST})) ) {
@@ -379,6 +382,11 @@ DFA<state_t, symbol_t> eNFA<state_t, symbol_t>::powerset() const {
 
             // add the transition
             PT.insert({{pi, s}, map->second});
+
+            // add the actions
+            for ( auto q : pq ) {
+                if ( map->first.contains(q) ) {
+                    
         }
     }
 
@@ -588,4 +596,4 @@ eNFA<> enfa_number(std::size_t& begin, std::size_t& end) {
     };
 }
 
-
+#endif//FSM_HPP

@@ -23,6 +23,8 @@ opt_var.add_cmake_defines({
 })
 sub = cmake.subproject('url', options : opt_var)
 
-executable('server', ['main.cpp', 'router.cpp'],
+executable('server',
+  sources : ['main.cpp', 'fsm2.cpp', 'router.cpp'],
+  #cpp_pch : 'pch/xpressive.hpp',
   dependencies: conan_deps + [sub.dependency('boost_url')]
 )

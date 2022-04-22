@@ -4,11 +4,13 @@
 #include <iostream>
 #include <string_view>
 
+#include <fmt/core.h>
 #include <argparse/argparse.hpp>
 
-#include <router.hpp>
+#include <fsm2.hpp>
 
 using namespace std::literals;
+using fmt::print;
 
 int main(int argc, char* argv[]) {
     argparse::ArgumentParser parser("url_test");
@@ -22,6 +24,11 @@ int main(int argc, char* argv[]) {
         std::cerr << parser;
         return 1;
     }
+
+    fsm2::FSM fsm = fsm2::from_string("abcde");
+
+    std::cout << fsm.to_graphviz();
+
 
     return 0;
 
