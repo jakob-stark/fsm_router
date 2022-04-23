@@ -14,7 +14,8 @@ struct FSM {
     using index_t  = std::size_t;
     using symbol_t = char;
     using sflag_t = unsigned char;
-    using action_t = std::function<void(std::size_t pos)>;
+    //using action_t = std::function<void(std::size_t pos)>;
+    using action_t = char;
 
     static_assert(std::is_signed_v<symbol_t>,
             "implementation requires char to be signed");
@@ -52,13 +53,13 @@ struct FSM {
 
     bool match(const std::string& str) const;
 
-    friend FSM from_string(const std::string& str);
+    friend FSM from_string(const std::string& str, char x);
     friend FSM concatenate(FSM lhs, FSM rhs);
     friend FSM alternative(FSM lhs, FSM rhs);
     friend FSM kleene_star(FSM lhs);
 };
 
-FSM from_string(const std::string& str);
+FSM from_string(const std::string& str, char x);
 
 }
 

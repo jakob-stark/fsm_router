@@ -25,14 +25,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    fsm2::FSM fsm_a = fsm2::from_string("xabcd");
-    fsm2::FSM fsm_b = fsm2::from_string("yabcd");
+    fsm2::FSM fsm_a = fsm2::from_string("xabcd",'C');
+    fsm2::FSM fsm_b = fsm2::from_string("yabcd",'B');
 
-    fsm2::FSM fsm_c = alternative(concatenate(kleene_star(fsm2::from_string("bcd")), fsm_a), fsm_b);
-    fsm_c = fsm_c.powerset();
+    fsm2::FSM fsm_c = alternative(fsm_a, fsm_b);
     std::cout << fsm_c.to_graphviz();
-
-    std::cerr << fsm_c.match("bcdxabcd"s) << '\n';
 
     return 0;
 

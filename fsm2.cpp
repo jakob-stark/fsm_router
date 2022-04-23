@@ -64,6 +64,9 @@ std::string FSM::to_graphviz() const {
                 } else {
                     result += symbol;
                 }
+                for ( auto a : target.actions ) {
+                    result += "/"s + a;
+                }
                 result += "\"];\n"s;
             }
         }
@@ -108,21 +111,19 @@ FSM FSM::powerset() const {
 
     while ( !Q.empty() ) {
         auto&& [pq, pi] = *Q.front(); Q.pop();
-        std::map<symbol_t, std::pair<state_set_t,std::vector<action_t>>> pt {};
+        std::map<symbol_t, state_set_t> pt {};
 
         for ( index_t q : pq ) {
             for ( auto&& [symbol, target] : states[q] ) {
                 if ( symbol != epsilon ) {
-                    auto&& [state_set, action_list] {pt[symbol]};
-                    state_set.insert(target.state);
-                    stdr::copy(target.actions, std::back_inserter(action_list));
+                    pt[symbol].insert(target.state);
                 }
             }
         }
 
         for ( auto&& [s, pp] : pt ) {
             auto&& [map_entry, inserted] = smap.insert(
-                    {epsilon_closure(pp-), fsm.states.size()});
+                    {epsilon_closure(pp), fsm.states.size()});
             if ( inserted ) {
                 Q.push(map_entry);
                 fsm.states.push_back({});
@@ -188,14 +189,14 @@ bool FSM::match(const std::string& str) const {
     return states[cs].contains(leaving);
 }
 
-FSM from_string(const std::string& str) {
+FSM from_string(const std::string& str, char x) {
     FSM fsm {};
 
     fsm.states.reserve(str.size() + 1_z);
     
     fsm.states.push_back({});
     for ( FSM::symbol_t c : str ) {
-        fsm.states.back().insert({c, {fsm.states.size(), {}}});
+        fsm.states.back().insert({c, {fsm.states.size(), {x}}});
         fsm.states.push_back({});
     }
     fsm.states.back().insert({FSM::leaving, {0_z, {}}});
