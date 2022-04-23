@@ -10,6 +10,7 @@ conan_deps = []
 foreach pkg_name, conan_version : conan_pkgs
   module_path = meson.current_build_dir() / 'conan_cmake'
   run_command('conan', 'install', pkg_name + '/' + conan_version + '@',
+    '--build=missing',
     '-if', module_path,
     '-g', 'cmake_find_package', check:true)
   conan_deps += dependency(pkg_name, method: 'cmake', cmake_module_path: module_path)
